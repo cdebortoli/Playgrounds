@@ -50,6 +50,9 @@ class Moon: SKSpriteNode {
         self.realSize = CGSizeMake(Moon.BaseSize.width * CGFloat(distanceRatio), Moon.BaseSize.height * CGFloat(distanceRatio))
         
         let textureFull = Moon.drawFull(realSize)
+        //let filter:CIFilter = CIFilter(name: "CIDroste")!
+        //filter.setDefaults()
+        //let texture = textureFull.textureByApplyingCIFilter(filter)
         super.init(texture: textureFull, color: SKColor.clearColor(), size: CGSizeMake(50,50))
         name = "moon"
     }
@@ -69,6 +72,7 @@ class Moon: SKSpriteNode {
         
         let textureImage:UIImage = UIGraphicsGetImageFromCurrentImageContext()
         let texture = SKTexture(image: textureImage)
+//        let texture = SKTexture(image: UIImage(named: "moon")!)
         return texture
     }
     
@@ -81,17 +85,47 @@ class Moon: SKSpriteNode {
     }
 }
 
+class CustomFilter:CIFilter {
+    var inputImage: CIImage?
+    var inputCenter: CIVector?
+    
+    override var outputImage:CIImage! {
+        let dist1 = CIFilter(name: "CILineScreen")
+        let dist2 = CIFilter(name: "CIAdditionCompositing")
+        let dist3 = CIFilter(name: "CIConvolution5X5")
+        
+        if let vector:CIVector = self.valueForKey("inputCenter") as? CIVector {
+            dist1!.setValue(vector, forKey: "inputCenter")
+        }
+        dist1!.setValue(1.14, forKey: "inputAngle")
+        dist1?.setValue(11, forKey: "inputWidth")
+        dist1?.setValue(0, forKey: "inputSharpness")
+        
+        
+        dist1!.setValue(inputImage, forKey: kCIInputImageKey)
+        dist2!.setValue(dist1!.outputImage, forKey: kCIInputImageKey)
+        dist2?.setValue(inputImage, forKey: "inputBackgroundImage")
+        dist3?.setValue(dist2?.outputImage, forKey: kCIInputImageKey)
+
+        let weights: [CGFloat] = [0.5,0,0,0,0,0,0,0,0.5]
+        let vector = CIVector(values: weights, count: Int(weights.count))
+        dist3?.setValue(vector, forKey: "inputWeights")
+        dist3?.setValue(0.5, forKey: "inputBias")
+        return dist2?.outputImage
+    }
+}
+
 
 /*
  * EXECUTION
  */
 let scene = Scene()
 scene.scaleMode = .AspectFit
-
+scene.backgroundColor = SKColor.whiteColor()
 
 // Moon
 func setMoon() {
-    scene.removeChildrenInArray(scene.children.filter({ $0.name == "moon"}))
+    scene.removeChildrenInArray(scene.children.filter({ $0.name == "moonEffect"}))
     
     let distanceRatio:Float = Float(moonDistanceRandom.nextInt())/100.0
     let position:CGPoint = CGPoint(x: moonXRandom.nextInt(), y: moonYRandom.nextInt())
@@ -100,7 +134,12 @@ func setMoon() {
     let moonCount:Int = moonPhaseRandom.nextInt()
     
     for i in 1...moonCount {
+        // Init moon
+        let moonEffect = SKEffectNode()
+        moonEffect.frame
+        moonEffect.name = "moonEffect"
         let moon = Moon(type: type!, distanceRatio: distanceRatio)
+        moonEffect.addChild(moon)
         
         // Position
         let dephaseCoef:Float = Float(moonPhaseCoefRandom.nextInt()) / 1000.0
@@ -116,17 +155,24 @@ func setMoon() {
         } else {
             y = position.y - (position.y * CGFloat(dephaseCoef))
         }
-        moon.position = CGPoint(x: x, y: y)
+        moonEffect.position = CGPoint(x: x, y: y)
         
         // Phase
-        if i > 1 {
+        if i < moonCount {
             moon.alpha = 0.5
+        
+        // Effect
+//            let filter:CIFilter = CustomFilter()
+//            filter.setDefaults()
+//            filter.setValue(CIVector(x: moonEffect.frame.width/2, y:moonEffect.frame.height/2), forKey: "inputCenter")
+//            moonEffect.filter = filter
+//            moonEffect.shouldEnableEffects = true
         }
         
-        scene.addChild(moon)
+        scene.addChild(moonEffect)
     }
     
-    let delayTime = dispatch_time(DISPATCH_TIME_NOW, Int64(0.1 * Double(NSEC_PER_SEC)))
+    let delayTime = dispatch_time(DISPATCH_TIME_NOW, Int64(0.2 * Double(NSEC_PER_SEC)))
     dispatch_after(delayTime, dispatch_get_main_queue()) {
         setMoon()
     }
@@ -136,10 +182,8 @@ setMoon()
 
 let view = SKView(frame: playframe)
 view.presentScene(scene)
+view.ignoresSiblingOrder = false
 XCPlaygroundPage.currentPage.liveView = view
 
-// effet dephasage
 // Generer une fois le plan des étoiles via du perlin noise
-
-
 
